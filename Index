@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistem Undian Sekolah</title>
-  <script src="/_sdk/data_sdk.js"></script>
-  <script src="/_sdk/element_sdk.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -302,54 +300,53 @@
     let currentView = 'positions';
     let selectedPosition = null;
     let countdownIntervals = {};
-    
-    const dataHandler = {
-      onDataChanged(data) {
-        allData = data;
+
+    // 1. TAMPAL URL GOOGLE SCRIPT ANDA DI SINI
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby7jeqiwxh0TxAqPs6pVqA_qPFBb7x0FvNZ75jGvMgarZ3gaR9r62_5AeolcdS-ljYWvw/exec";
+
+    // 2. FUNGSI AMBIL DATA DARI GOOGLE SHEETS
+    async function fetchData() {
+        const tables = ['positions', 'members', 'votes'];
+        let combinedData = [];
+        for (const table of tables) {
+            try {
+                const res = await fetch(`${SCRIPT_URL}?table=${table}`);
+                const json = await res.json();
+                const dataWithType = json.map(item => ({ ...item, type: table.replace(/s$/, '') }));
+                combinedData = [...combinedData, ...dataWithType];
+            } catch (e) { console.log("Tiada data di table: " + table); }
+        }
+        allData = combinedData;
         renderCurrentView();
-      }
-    };
-    
-    async function init() {
-      const initResult = await window.dataSdk.init(dataHandler);
-      if (!initResult.isOk) {
-        showToast('Gagal memulakan sistem', 'error');
-        return;
-      }
-      
-      if (window.elementSdk) {
-        window.elementSdk.init({
-          defaultConfig,
-          onConfigChange: async (config) => {
-            document.getElementById('app-title').textContent = config.app_title || defaultConfig.app_title;
-            document.getElementById('school-name').textContent = config.school_name || defaultConfig.school_name;
-            
-            const primaryColor = config.primary_color || defaultConfig.primary_color;
-            document.querySelectorAll('.btn-primary').forEach(btn => {
-              btn.style.background = `linear-gradient(135deg, ${primaryColor} 0%, #FFA500 100%)`;
-            });
-          },
-          mapToCapabilities: (config) => ({
-            recolorables: [
-              {
-                get: () => config.primary_color || defaultConfig.primary_color,
-                set: (value) => {
-                  config.primary_color = value;
-                  window.elementSdk.setConfig({ primary_color: value });
-                }
-              }
-            ],
-            borderables: [],
-            fontEditable: undefined,
-            fontSizeable: undefined
-          }),
-          mapToEditPanelValues: (config) => new Map([
-            ['app_title', config.app_title || defaultConfig.app_title],
-            ['school_name', config.school_name || defaultConfig.school_name]
-          ])
-        });
-      }
     }
+
+    // 3. GANTI SDK CANVA KEPADA SDK GOOGLE SHEETS
+    window.dataSdk = {
+        create: async (payload) => {
+            const table = payload.type + 's';
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors', 
+                body: JSON.stringify({ action: 'create', table: table, data: payload })
+            });
+            setTimeout(fetchData, 1500); // Tunggu 1.5 saat baru refresh
+            return { isOk: true };
+        },
+        update: async (payload) => {
+            const table = payload.type + 's';
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({ action: 'update', table: table, data: payload })
+            });
+            setTimeout(fetchData, 1500);
+            return { isOk: true };
+        },
+        init: async () => {
+            await fetchData();
+            return { isOk: true };
+        }
+    };
     
     function renderCurrentView() {
       const container = document.getElementById('main-content');
@@ -1754,9 +1751,9 @@
     }
     
     // Initialize on page load
+   // Sistem akan mula ambil data dari Google Sheets sebaik sahaja web dibuka
     document.addEventListener('DOMContentLoaded', async () => {
-      await init();
-      await seedInitialMembers();
+      await window.dataSdk.init(); 
     });
   </script>
  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b83bf9f01e716ee',t:'MTc2NzQ1NjQ0MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
